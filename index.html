@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Enterprise Agentic AI Platform — Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg: #0b0b0c;
+    --bg-2: #111113;
+    --ink: #f3f3f1;
+    --ink-dim: #a6a6a3;
+    --ink-mute: #6b6b68;
+    --line: #2a2a2c;
+    --line-strong: #3a3a3d;
+    --card: #131315;
+    --card-hover: #17171a;
+    --flash: #ffffff;
+    --sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11";}
+  body{min-height:100vh;overflow-x:hidden}
+
+  /* —— Layout —— */
+  .shell{
+    display:grid;
+    grid-template-columns: 1fr 380px;
+    min-height:100vh;
+  }
+  @media (max-width: 1100px){
+    .shell{grid-template-columns:1fr}
+    .sidepanel{position:fixed;inset:auto 0 0 0;border-left:none !important;border-top:1px solid var(--line);max-height:55vh}
+  }
+
+  .stage{padding:48px 56px 80px; position:relative;}
+  @media (max-width:720px){ .stage{padding:28px 20px 60px} }
+
+  header.titlebar{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:24px;
+    padding-bottom:28px;margin-bottom:36px;
+    border-bottom:1px solid var(--line);
+  }
+  h1.brand{
+    font-size:22px;font-weight:600;letter-spacing:-0.01em;margin:0 0 6px;
+  }
+  .brand-sub{
+    font-family:var(--mono);font-size:11px;color:var(--ink-mute);
+    text-transform:uppercase;letter-spacing:0.14em;
+  }
+  .legend{
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;
+  }
+  .legend-item{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-dim);
+    padding:7px 12px;border:1px solid var(--line-strong);border-radius:2px;
+    display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    transition:border-color .2s ease, color .2s ease, background .2s ease;
+    background:transparent;
+    user-select:none;
+  }
+  .legend-item:hover{border-color:var(--ink);color:var(--ink)}
+  .legend-item[data-active="true"]{background:var(--ink);color:#000;border-color:var(--ink)}
+  .legend-dot{
+    width:6px;height:6px;border-radius:50%;background:var(--ink-dim);
+    box-shadow:0 0 0 0 rgba(255,255,255,0);
+  }
+  .legend-item[data-active="true"] .legend-dot{background:#000}
+
+  /* —— Diagram —— */
+  .diagram{
+    position:relative;
+    width:100%;
+    max-width:1040px;
+    margin:0 auto;
+  }
+  .tier{
+    position:relative;
+    display:grid;
+    gap:18px;
+    margin-bottom:68px; /* space for connectors */
+  }
+  .tier:last-child{margin-bottom:0}
+  .tier[data-cols="1"]{grid-template-columns:1fr}
+  .tier[data-cols="2"]{grid-template-columns:1fr 1fr}
+  .tier[data-cols="2-uneven"]{grid-template-columns: 2fr 1fr}
+
+  /* Node */
+  .node{
+    position:relative;
+    background:var(--card);
+    border:1px solid var(--line);
+    padding:22px 24px;
+    cursor:pointer;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    min-height:104px;
+    display:flex;flex-direction:column;justify-content:center;gap:6px;
+  }
+  .node:hover{border-color:var(--ink-dim);background:var(--card-hover)}
+  .node[data-selected="true"]{
+    border-color:var(--ink);
+    background:#1a1a1d;
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+  .node .n-index{
+    position:absolute;top:10px;right:12px;
+    font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:.12em;
+  }
+  .node .n-title{
+    font-size:18px;font-weight:600;letter-spacing:-0.01em;color:var(--ink);
+  }
+  .node .n-sub{
+    font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);letter-spacing:.02em;
+    line-height:1.5;
+  }
+  .node .n-tags{
+    display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;
+  }
+  .n-tag{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-mute);padding:4px 7px;border:1px solid var(--line-strong);
+  }
+
+  /* Primary node (stronger) */
+  .node.primary{
+    background:#f3f3f1;color:#000;border-color:#f3f3f1;
+  }
+  .node.primary .n-title{color:#000}
+  .node.primary .n-sub{color:#333}
+  .node.primary .n-index{color:#555}
+  .node.primary .n-tag{color:#333;border-color:#bbb}
+  .node.primary:hover{background:#e9e9e5}
+  .node.primary[data-selected="true"]{box-shadow:inset 0 0 0 2px #000;}
+
+  /* Outline node (for agent core wrapper with children) */
+  .node.group{
+    padding:22px 24px 18px;
+  }
+  .node.group .children{
+    display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-top:16px;
+  }
+  .node.group.children-3 .children{grid-template-columns:repeat(3, 1fr);}
+  .child{
+    border:1px solid var(--line-strong);
+    padding:10px 12px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    color:var(--ink-dim);text-align:center;
+    transition:all .18s ease;
+    cursor:pointer;
+    background:rgba(255,255,255,0.015);
+  }
+  .child:hover{color:var(--ink);border-color:var(--ink-dim);background:rgba(255,255,255,0.04)}
+  .child[data-selected="true"]{color:#000;background:var(--ink);border-color:var(--ink)}
+
+  /* —— Connectors (SVG) —— */
+  .connectors{
+    position:absolute;inset:0;pointer-events:none;z-index:0;
+    width:100%;height:100%;
+  }
+  .connector-path{
+    fill:none;stroke:var(--line-strong);stroke-width:1;
+  }
+  .flow-dash{
+    fill:none;stroke:var(--ink);stroke-width:1.2;
+    stroke-dasharray: 2 7;
+    stroke-dashoffset: 0;
+    animation: flow 1.8s linear infinite;
+    opacity:.65;
+  }
+  .flow-dash.slow{animation-duration:3.6s;opacity:.45}
+  @keyframes flow{
+    from{stroke-dashoffset: 0}
+    to{stroke-dashoffset: -90}
+  }
+
+  .pulse{
+    r:2.6;fill:var(--ink);
+  }
+
+  /* Arrowheads */
+  .arrow-head{
+    fill:var(--ink);
+  }
+
+  /* Cross-cutting rail */
+  .crosscut{
+    position:relative;
+    display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;
+    padding:14px 18px;margin-bottom:46px;
+    border:1px dashed var(--line-strong);
+  }
+  .crosscut-label{
+    font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-mute);white-space:nowrap;
+  }
+  .crosscut-chips{
+    display:flex;gap:10px;flex-wrap:wrap;
+  }
+  .chip{
+    position:relative;
+    padding:10px 16px;
+    border:1px solid var(--line-strong);
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink);cursor:pointer;background:var(--bg-2);
+    transition:all .2s ease;
+  }
+  .chip:hover{border-color:var(--ink);background:#1b1b1e}
+  .chip[data-active="true"]{background:var(--ink);color:#000;border-color:var(--ink)}
+  .chip::before{
+    content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:2px;
+    background:var(--ink);
+    opacity:0;transition:opacity .2s ease;
+  }
+  .chip:hover::before{opacity:.7}
+  .chip[data-active="true"]::before{opacity:0}
+
+  /* Halo when cross-cutting concern is highlighted */
+  .node.halo::after{
+    content:"";position:absolute;inset:-1px;
+    border:1px solid var(--ink);
+    pointer-events:none;
+    animation: haloPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes haloPulse{
+    0%,100%{opacity:.25}
+    50%{opacity:.85}
+  }
+
+  /* —— Side panel —— */
+  .sidepanel{
+    border-left:1px solid var(--line);
+    background:var(--bg-2);
+    padding:48px 36px;
+    position:sticky;top:0;height:100vh;overflow-y:auto;
+    display:flex;flex-direction:column;gap:24px;
+  }
+  .panel-crumb{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-mute);
+    display:flex;align-items:center;gap:10px;
+  }
+  .panel-crumb .dash{width:14px;height:1px;background:var(--line-strong)}
+  .panel-title{
+    font-size:26px;font-weight:600;letter-spacing:-0.01em;margin:0;line-height:1.15;
+  }
+  .panel-lead{
+    font-size:14px;line-height:1.6;color:var(--ink-dim);margin:0;
+  }
+  .panel-section-label{
+    font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-mute);margin-bottom:10px;
+  }
+  .panel-list{
+    display:flex;flex-direction:column;gap:10px;
+    list-style:none;padding:0;margin:0;
+  }
+  .panel-list li{
+    font-size:13px;color:var(--ink);line-height:1.5;
+    padding-left:18px;position:relative;
+  }
+  .panel-list li::before{
+    content:"";position:absolute;left:0;top:9px;width:8px;height:1px;background:var(--ink-dim);
+  }
+  .panel-meta{
+    display:grid;grid-template-columns:auto 1fr;column-gap:18px;row-gap:8px;
+    font-family:var(--mono);font-size:11.5px;
+  }
+  .panel-meta dt{color:var(--ink-mute);letter-spacing:.08em;text-transform:uppercase;font-size:10px}
+  .panel-meta dd{margin:0;color:var(--ink)}
+  .panel-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .panel-link{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink);padding:8px 12px;border:1px solid var(--line-strong);
+    cursor:pointer;transition:all .18s ease;background:transparent;
+  }
+  .panel-link:hover{border-color:var(--ink);background:var(--card)}
+
+  .panel-footer{
+    margin-top:auto;padding-top:22px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);letter-spacing:.1em;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .panel-footer kbd{
+    font-family:var(--mono);font-size:10px;padding:3px 6px;border:1px solid var(--line-strong);
+    color:var(--ink-dim);background:var(--card);border-bottom-width:2px;
+  }
+
+  /* Scrollbar */
+  .sidepanel::-webkit-scrollbar{width:6px}
+  .sidepanel::-webkit-scrollbar-thumb{background:var(--line-strong)}
+  .sidepanel::-webkit-scrollbar-track{background:transparent}
+
+  /* Focus */
+  .node:focus-visible, .child:focus-visible, .chip:focus-visible, .panel-link:focus-visible, .legend-item:focus-visible{
+    outline:1px solid var(--ink);outline-offset:2px;
+  }
+
+  /* tiny top banner */
+  .top-hint{
+    position:fixed;bottom:18px;left:18px;
+    font-family:var(--mono);font-size:10px;color:var(--ink-mute);
+    letter-spacing:.12em;text-transform:uppercase;
+    padding:8px 12px;border:1px solid var(--line);background:rgba(10,10,10,.8);
+    backdrop-filter:blur(6px);
+    pointer-events:none;z-index:50;
+  }
+
+  /* Noise texture overlay (very subtle) */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:100;
+    background-image: radial-gradient(rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 3px 3px;
+    mix-blend-mode:overlay;
+    opacity:.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ================= STAGE ================= -->
+  <main class="stage">
+    <header class="titlebar">
+      <div>
+        <h1 class="brand">Enterprise Agentic AI Platform</h1>
+        <div class="brand-sub">Reference architecture · v0.4 · click a block</div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </header>
+
+    <!-- Cross-cutting -->
+    <div class="crosscut">
+      <div class="crosscut-label">Cross-cutting<br/>concerns</div>
+      <div class="crosscut-chips" id="crosscut-chips"></div>
+    </div>
+
+    <!-- Diagram -->
+    <div class="diagram" id="diagram">
+      <svg class="connectors" id="connectors" aria-hidden="true"></svg>
+
+      <!-- Tier 1: Team Agent Pods + Reusable Tools -->
+      <div class="tier" data-cols="2" data-tier="1">
+        <div class="node" data-node="team-pods">
+          <span class="n-index">01</span>
+          <div class="n-title">Team Agent Pods</div>
+          <div class="n-sub">Teams build their own agents in isolated workspaces.</div>
+          <div class="n-tags"><span class="n-tag">Workspaces</span><span class="n-tag">Sandboxed</span></div>
+        </div>
+        <div class="node" data-node="reusable-tools">
+          <span class="n-index">02</span>
+          <div class="n-title">Reusable Tools</div>
+          <div class="n-sub">Blueprints · adapters · config shared across pods.</div>
+          <div class="n-tags"><span class="n-tag">Library</span><span class="n-tag">Versioned</span></div>
+        </div>
+      </div>
+
+      <!-- Tier 2: AI Gateway -->
+      <div class="tier" data-cols="1" data-tier="2">
+        <div class="node primary" data-node="gateway">
+          <span class="n-index">03</span>
+          <div class="n-title">AI Gateway</div>
+          <div class="n-sub">Auth · routing · rate limits · cost control · audit.</div>
+          <div class="n-tags"><span class="n-tag">Single entry</span><span class="n-tag">Policy</span><span class="n-tag">Budget</span></div>
+        </div>
+      </div>
+
+      <!-- Tier 3: Orchestrator + HOTL -->
+      <div class="tier" data-cols="2-uneven" data-tier="3">
+        <div class="node" data-node="orchestrator">
+          <span class="n-index">04</span>
+          <div class="n-title">Durable Orchestrator</div>
+          <div class="n-sub">Retries · state · long-running workflows with checkpoints.</div>
+          <div class="n-tags"><span class="n-tag">Idempotent</span><span class="n-tag">Replayable</span></div>
+        </div>
+        <div class="node" data-node="hotl">
+          <span class="n-index">05</span>
+          <div class="n-title">HOTL</div>
+          <div class="n-sub">Human-on-the-loop approvals &amp; interventions.</div>
+          <div class="n-tags"><span class="n-tag">Review</span></div>
+        </div>
+      </div>
+
+      <!-- Tier 4: Agent Core -->
+      <div class="tier" data-cols="1" data-tier="4">
+        <div class="node group" data-node="agent-core">
+          <span class="n-index">06</span>
+          <div class="n-title">Agent Core</div>
+          <div class="n-sub">The brain — a reasoning loop per task.</div>
+          <div class="children">
+            <div class="child" data-node="plan">Plan</div>
+            <div class="child" data-node="retrieve">Retrieve</div>
+            <div class="child" data-node="execute">Execute</div>
+            <div class="child" data-node="evaluate">Evaluate</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tier 5: MCP Registry + MCP Servers -->
+      <div class="tier" data-cols="2" data-tier="5">
+        <div class="node" data-node="mcp-registry">
+          <span class="n-index">07</span>
+          <div class="n-title">MCP Registry</div>
+          <div class="n-sub">Catalog of tools &amp; skills — discoverable, signed.</div>
+          <div class="n-tags"><span class="n-tag">Discovery</span><span class="n-tag">Trust</span></div>
+        </div>
+        <div class="node" data-node="mcp-servers">
+          <span class="n-index">08</span>
+          <div class="n-title">MCP Servers</div>
+          <div class="n-sub">Jira · Confluence · SharePoint · internal APIs.</div>
+          <div class="n-tags"><span class="n-tag">Integrations</span></div>
+        </div>
+      </div>
+
+      <!-- Tier 6: Enterprise Data Foundation -->
+      <div class="tier" data-cols="1" data-tier="6">
+        <div class="node group children-4" data-node="data-foundation">
+          <span class="n-index">09</span>
+          <div class="n-title">Enterprise Data Foundation</div>
+          <div class="n-sub">Shared long-term memory · single source of truth.</div>
+          <div class="children">
+            <div class="child" data-node="vector">Vector Store</div>
+            <div class="child" data-node="kg">Knowledge Graph</div>
+            <div class="child" data-node="lake">Data Lake</div>
+            <div class="child" data-node="warehouse">Warehouse</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================= SIDE PANEL ================= -->
+  <aside class="sidepanel" id="panel">
+    <!-- injected -->
+  </aside>
+</div>
+
+<div class="top-hint" id="hint">click any block · esc to deselect</div>
+
+<script>
+/* ---------------- Data ---------------- */
+const NODES = {
+  'team-pods': {
+    crumb: '01 · Experience',
+    title: 'Team Agent Pods',
+    lead: 'Isolated workspaces where individual teams compose their own agents without stepping on each other.',
+    list: [
+      'One pod per team · own config, secrets, and deployment lane',
+      'Shared contracts but independent release cadence',
+      'Pods publish capabilities back to the registry'
+    ],
+    meta: { owners: 'Product teams', sla: 'Best-effort', tier: 'Experience' },
+    governs: ['governance','identity']
+  },
+  'reusable-tools': {
+    crumb: '02 · Experience',
+    title: 'Reusable Tools',
+    lead: 'Curated library of blueprints, adapters, and configuration primitives that teams assemble into agents.',
+    list: [
+      'Blueprint templates for common workflows',
+      'Typed adapters for common systems',
+      'Versioned and signed — no copy/paste drift'
+    ],
+    meta: { owners: 'Platform team', sla: '99.9%', tier: 'Experience' },
+    governs: ['governance']
+  },
+  'gateway': {
+    crumb: '03 · Control plane',
+    title: 'AI Gateway',
+    lead: 'Single ingress for every model call. Everything passes through here — nothing bypasses policy, identity, or cost controls.',
+    list: [
+      'Auth, tenant routing, per-team rate limits',
+      'Cost control and budgets per pod / per task',
+      'Prompt + response audit with full redaction policy',
+      'Vendor-agnostic — swap models without refactors'
+    ],
+    meta: { owners: 'Platform team', sla: '99.95%', tier: 'Control plane' },
+    governs: ['governance','observability','identity']
+  },
+  'orchestrator': {
+    crumb: '04 · Runtime',
+    title: 'Durable Orchestrator',
+    lead: 'Runs long-lived workflows reliably. Retries, checkpoints state, and resumes cleanly after failures.',
+    list: [
+      'Idempotent steps · deterministic replay',
+      'Handles multi-hour / multi-day tasks',
+      'Triggers human review via HOTL when confidence drops'
+    ],
+    meta: { owners: 'Runtime team', sla: '99.9%', tier: 'Runtime' },
+    governs: ['observability']
+  },
+  'hotl': {
+    crumb: '05 · Runtime',
+    title: 'HOTL — Human on the Loop',
+    lead: 'Review queue for decisions that require human oversight, approval, or intervention before execution continues.',
+    list: [
+      'Policy-driven escalation rules',
+      'Rich context — diff, reasoning trace, risk score',
+      'Auditable approvals tied to identity'
+    ],
+    meta: { owners: 'Trust & Safety', sla: 'Business hours + on-call', tier: 'Runtime' },
+    governs: ['governance','identity']
+  },
+  'agent-core': {
+    crumb: '06 · Runtime',
+    title: 'Agent Core',
+    lead: 'The reasoning loop per task — Plan, Retrieve, Execute, Evaluate. Each agent invocation spins up its own loop under orchestrator supervision.',
+    list: [
+      'Planner decomposes goal into steps',
+      'Retriever pulls facts from data foundation',
+      'Executor calls tools via MCP',
+      'Evaluator checks the result; loops or exits'
+    ],
+    meta: { owners: 'Runtime team', sla: '99.9%', tier: 'Runtime' },
+    governs: ['observability']
+  },
+  'plan': {
+    crumb: '06a · Reasoning',
+    title: 'Plan',
+    lead: 'Decomposes the task into an ordered, revisable plan of steps.',
+    list: ['Produces a DAG of steps','Re-plans when evaluation fails','Exposes plan to HOTL for preview'],
+    meta: { phase: '1 of 4' },
+    governs: ['observability']
+  },
+  'retrieve': {
+    crumb: '06b · Reasoning',
+    title: 'Retrieve',
+    lead: 'Gathers the facts and context needed for the current step.',
+    list: ['Hybrid vector + keyword + graph','Respects row-level ACLs','Cached per-task for determinism'],
+    meta: { phase: '2 of 4' },
+    governs: ['identity','observability']
+  },
+  'execute': {
+    crumb: '06c · Reasoning',
+    title: 'Execute',
+    lead: 'Calls tools via the MCP layer to carry out the step.',
+    list: ['Streaming tool output','Typed args · runtime validation','Sandboxed side-effects'],
+    meta: { phase: '3 of 4' },
+    governs: ['governance','observability']
+  },
+  'evaluate': {
+    crumb: '06d · Reasoning',
+    title: 'Evaluate',
+    lead: 'Judges whether the step result meets acceptance criteria.',
+    list: ['Rubric + self-check','Confidence score drives HOTL escalation','Metrics feed observability'],
+    meta: { phase: '4 of 4' },
+    governs: ['observability']
+  },
+  'mcp-registry': {
+    crumb: '07 · Tools',
+    title: 'MCP Registry',
+    lead: 'Catalog of tools and skills agents can discover and call. Registry entries are signed and versioned.',
+    list: [
+      'Search, browse, subscribe',
+      'Semantic versioning · deprecation windows',
+      'Governance gates before publication'
+    ],
+    meta: { owners: 'Platform team', tier: 'Tools' },
+    governs: ['governance']
+  },
+  'mcp-servers': {
+    crumb: '08 · Tools',
+    title: 'MCP Servers',
+    lead: 'The concrete integrations — the bridge from agent action to enterprise system.',
+    list: [
+      'Jira · Confluence · SharePoint · internal APIs',
+      'Per-server scopes and rate limits',
+      'Structured output · streaming supported'
+    ],
+    meta: { owners: 'Integration owners', tier: 'Tools' },
+    governs: ['identity','observability']
+  },
+  'data-foundation': {
+    crumb: '09 · Data',
+    title: 'Enterprise Data Foundation',
+    lead: 'The shared long-term memory and single source of truth that the whole platform reads from and writes back to.',
+    list: [
+      'Unified access policy across surfaces',
+      'Row-level security · PII redaction',
+      'Lineage from raw → retrieved context'
+    ],
+    meta: { owners: 'Data platform', tier: 'Data', sla: '99.9%' },
+    governs: ['governance','identity']
+  },
+  'vector': { crumb:'09a · Memory', title:'Vector Store', lead:'Dense embeddings for semantic recall across docs and chats.', list:['Hybrid search','Tenant-scoped namespaces','Re-embedding pipelines'], meta:{store:'HNSW'}, governs:['identity']},
+  'kg':     { crumb:'09b · Memory', title:'Knowledge Graph', lead:'Entities and relationships between people, products and processes.', list:['SPARQL + GraphQL','Linked to lineage','Grounding for planning'], meta:{store:'RDF + property graph'}, governs:['governance']},
+  'lake':   { crumb:'09c · Memory', title:'Data Lake', lead:'Raw, append-only source of truth for events and documents.', list:['Columnar parquet','Schema evolution','Time-travel queries'], meta:{format:'Iceberg'}, governs:['governance']},
+  'warehouse':{crumb:'09d · Memory', title:'Warehouse', lead:'Modelled, queryable analytics store for metrics and reporting.', list:['SQL-first','Row-level security','Materialised views'], meta:{engine:'Columnar MPP'}, governs:['observability']},
+
+  // cross-cutting
+  'governance':   {crumb:'◆ Cross-cutting', title:'Governance', lead:'Policy, approval, retention, and audit controls that apply across every tier of the platform.', list:['Policy as code','Approval workflows','Retention & DLP','Full audit trail'], meta:{owners:'Risk & compliance'}, highlight:true},
+  'observability':{crumb:'◆ Cross-cutting', title:'Observability', lead:'Unified telemetry — traces, metrics, and logs — that spans every call from pod through data.', list:['Distributed tracing','Token + cost metrics','Run replays','Drift alerts'], meta:{owners:'Platform team'}, highlight:true},
+  'identity':     {crumb:'◆ Cross-cutting', title:'Identity', lead:'Who is acting — user, service, or agent — and what they are permitted to do.', list:['OIDC + workload identity','Scoped agent credentials','Delegation chains','Break-glass'], meta:{owners:'Security'}, highlight:true}
+};
+
+/* ---------------- Side panel ---------------- */
+const panel = document.getElementById('panel');
+function renderPanel(id){
+  const n = NODES[id];
+  if(!n){ renderEmpty(); return; }
+  panel.innerHTML = `
+    <div class="panel-crumb"><span>${n.crumb}</span><span class="dash"></span><span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute)">${id}</span></div>
+    <h2 class="panel-title">${n.title}</h2>
+    <p class="panel-lead">${n.lead}</p>
+    ${n.list ? `
+    <div>
+      <div class="panel-section-label">Responsibilities</div>
+      <ul class="panel-list">${n.list.map(x=>`<li>${x}</li>`).join('')}</ul>
+    </div>`:''}
+    ${n.meta ? `
+    <div>
+      <div class="panel-section-label">Spec</div>
+      <dl class="panel-meta">
+        ${Object.entries(n.meta).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}
+      </dl>
+    </div>`:''}
+    ${n.governs ? `
+    <div>
+      <div class="panel-section-label">Touches cross-cutting</div>
+      <div class="panel-links">
+        ${n.governs.map(g=>`<button class="panel-link" data-jump="${g}">${g}</button>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="panel-footer">
+      <span>${id.toUpperCase()}</span>
+      <span><kbd>Esc</kbd> deselect</span>
+    </div>
+  `;
+  panel.querySelectorAll('[data-jump]').forEach(b=>{
+    b.addEventListener('click', ()=> select(b.dataset.jump));
+  });
+}
+function renderEmpty(){
+  panel.innerHTML = `
+    <div class="panel-crumb"><span>Overview</span><span class="dash"></span><span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute)">index</span></div>
+    <h2 class="panel-title">A reference architecture for agentic workloads at enterprise scale.</h2>
+    <p class="panel-lead">Teams build agents in their own pods from a shared toolkit. Every call funnels through a single gateway, is orchestrated durably, and resolves through a reasoning loop that reaches out via MCP into a shared data foundation. Governance, observability, and identity run across every tier.</p>
+    <div>
+      <div class="panel-section-label">How to read this</div>
+      <ul class="panel-list">
+        <li><strong>Blocks</strong> — components. Click one for a detailed explanation.</li>
+        <li><strong>Flowing lines</strong> — request &amp; data paths. Direction follows the animation.</li>
+        <li><strong>Chips above</strong> — concerns that apply everywhere; toggle to highlight blocks they govern.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="panel-section-label">Tiers</div>
+      <dl class="panel-meta">
+        <dt>01–02</dt><dd>Experience</dd>
+        <dt>03</dt><dd>Control plane</dd>
+        <dt>04–06</dt><dd>Runtime</dd>
+        <dt>07–08</dt><dd>Tools</dd>
+        <dt>09</dt><dd>Data</dd>
+      </dl>
+    </div>
+    <div class="panel-footer">
+      <span>READY</span>
+      <span>click a block →</span>
+    </div>
+  `;
+}
+
+/* ---------------- Selection ---------------- */
+let selected = null;
+function select(id){
+  selected = id;
+  document.querySelectorAll('[data-node]').forEach(el=>{
+    el.setAttribute('data-selected', el.dataset.node === id ? 'true':'false');
+  });
+  // chips reflect selection too for cross-cutting
+  document.querySelectorAll('.chip').forEach(c=>{
+    c.setAttribute('data-active', c.dataset.node === id ? 'true':'false');
+  });
+  document.querySelectorAll('.legend-item').forEach(c=>{
+    c.setAttribute('data-active', c.dataset.node === id ? 'true':'false');
+  });
+  renderPanel(id);
+  applyHalo(null); // clear halo when selecting specific
+}
+function clearSelection(){
+  selected = null;
+  document.querySelectorAll('[data-selected="true"]').forEach(el=>el.setAttribute('data-selected','false'));
+  document.querySelectorAll('.chip[data-active="true"]').forEach(el=>el.setAttribute('data-active','false'));
+  document.querySelectorAll('.legend-item[data-active="true"]').forEach(el=>el.setAttribute('data-active','false'));
+  renderEmpty();
+  applyHalo(null);
+}
+
+/* ---------------- Cross-cutting hover halo ---------------- */
+function applyHalo(concernId){
+  document.querySelectorAll('.node.halo').forEach(n=>n.classList.remove('halo'));
+  if(!concernId) return;
+  Object.entries(NODES).forEach(([id, def])=>{
+    if(def.governs && def.governs.includes(concernId)){
+      const el = document.querySelector(`[data-node="${id}"]`);
+      if(el) el.classList.add('halo');
+    }
+  });
+}
+
+/* ---------------- Cross-cutting chips + legend ---------------- */
+const CROSSCUTS = ['governance','observability','identity'];
+const chipsEl = document.getElementById('crosscut-chips');
+CROSSCUTS.forEach(c=>{
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.dataset.node = c;
+  b.textContent = NODES[c].title;
+  b.addEventListener('mouseenter', ()=> applyHalo(c));
+  b.addEventListener('mouseleave', ()=> applyHalo(null));
+  b.addEventListener('click', ()=> select(c));
+  chipsEl.appendChild(b);
+});
+
+const legendEl = document.getElementById('legend');
+[
+  {k:'experience',  t:'Experience', ids:['team-pods','reusable-tools']},
+  {k:'control',     t:'Control', ids:['gateway']},
+  {k:'runtime',     t:'Runtime', ids:['orchestrator','hotl','agent-core']},
+  {k:'tools',       t:'Tools', ids:['mcp-registry','mcp-servers']},
+  {k:'data',        t:'Data', ids:['data-foundation']},
+].forEach(g=>{
+  const b = document.createElement('button');
+  b.className='legend-item';
+  b.innerHTML = `<span class="legend-dot"></span>${g.t}`;
+  b.addEventListener('mouseenter', ()=>{
+    g.ids.forEach(id=>{
+      const el = document.querySelector(`[data-node="${id}"]`);
+      if(el) el.classList.add('halo');
+    });
+  });
+  b.addEventListener('mouseleave', ()=>{
+    document.querySelectorAll('.node.halo').forEach(n=>n.classList.remove('halo'));
+  });
+  legendEl.appendChild(b);
+});
+
+/* ---------------- Click handlers ---------------- */
+document.querySelectorAll('.node, .child').forEach(el=>{
+  el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    select(el.dataset.node);
+  });
+  el.setAttribute('tabindex','0');
+  el.addEventListener('keydown',(e)=>{
+    if(e.key==='Enter' || e.key===' '){ e.preventDefault(); select(el.dataset.node); }
+  });
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') clearSelection(); });
+document.body.addEventListener('click', (e)=>{
+  if(e.target === document.body || e.target.classList.contains('diagram') || e.target.classList.contains('stage')){
+    clearSelection();
+  }
+});
+
+/* ---------------- Connectors ---------------- */
+const svg = document.getElementById('connectors');
+const diagram = document.getElementById('diagram');
+
+function buildConnectors(){
+  const w = diagram.clientWidth;
+  const h = diagram.clientHeight;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', h);
+  svg.innerHTML = '';
+
+  // helper: node center-bottom point, in diagram coords
+  const rectFor = (sel)=>{
+    const el = diagram.querySelector(sel);
+    if(!el) return null;
+    const r = el.getBoundingClientRect();
+    const d = diagram.getBoundingClientRect();
+    return {
+      x: r.left - d.left, y: r.top - d.top,
+      w: r.width, h: r.height,
+      cx: r.left - d.left + r.width/2,
+      cy: r.top  - d.top  + r.height/2,
+      top: r.top - d.top,
+      bottom: r.top - d.top + r.height,
+      left: r.left - d.left,
+      right: r.left - d.left + r.width
+    };
+  };
+
+  // marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `
+    <marker id="arrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" class="arrow-head"></path>
+    </marker>
+  `;
+  svg.appendChild(defs);
+
+  // connection list — each connects bottom-center → top-center
+  const conns = [
+    ['[data-node="team-pods"]','[data-node="gateway"]'],
+    ['[data-node="reusable-tools"]','[data-node="gateway"]'],
+    ['[data-node="gateway"]','[data-node="orchestrator"]'],
+    ['[data-node="gateway"]','[data-node="hotl"]'],
+    ['[data-node="orchestrator"]','[data-node="agent-core"]'],
+    ['[data-node="hotl"]','[data-node="agent-core"]'],
+    ['[data-node="agent-core"]','[data-node="mcp-registry"]'],
+    ['[data-node="agent-core"]','[data-node="mcp-servers"]'],
+    ['[data-node="mcp-registry"]','[data-node="data-foundation"]'],
+    ['[data-node="mcp-servers"]','[data-node="data-foundation"]'],
+  ];
+
+  conns.forEach(([fromSel,toSel], i)=>{
+    const a = rectFor(fromSel), b = rectFor(toSel);
+    if(!a || !b) return;
+
+    const x1 = a.cx, y1 = a.bottom;
+    const x2 = b.cx, y2 = b.top;
+
+    // Elbow routing: vertical down, horizontal across at mid, vertical down
+    const midY = y1 + (y2-y1)/2;
+    const d = `M ${x1} ${y1}
+               V ${midY}
+               H ${x2}
+               V ${y2 - 8}`;
+
+    // base guide line
+    const base = document.createElementNS('http://www.w3.org/2000/svg','path');
+    base.setAttribute('d', d);
+    base.setAttribute('class','connector-path');
+    svg.appendChild(base);
+
+    // animated flow dashes
+    const flow = document.createElementNS('http://www.w3.org/2000/svg','path');
+    flow.setAttribute('d', d);
+    flow.setAttribute('class','flow-dash' + (i%2 ? ' slow':''));
+    flow.style.animationDelay = `${(i * 0.18).toFixed(2)}s`;
+    svg.appendChild(flow);
+
+    // arrowhead at end
+    const tip = document.createElementNS('http://www.w3.org/2000/svg','path');
+    tip.setAttribute('d', `M ${x2-4} ${y2-6} L ${x2} ${y2} L ${x2+4} ${y2-6} Z`);
+    tip.setAttribute('class','arrow-head');
+    svg.appendChild(tip);
+  });
+}
+
+buildConnectors();
+let rAF;
+const rebuild = ()=>{ cancelAnimationFrame(rAF); rAF = requestAnimationFrame(buildConnectors); };
+window.addEventListener('resize', rebuild);
+// rebuild once fonts load (layout can shift)
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(rebuild);
+setTimeout(rebuild, 150);
+setTimeout(rebuild, 800);
+
+/* ---------------- Init ---------------- */
+renderEmpty();
+
+</script>
+</body>
+</html>
